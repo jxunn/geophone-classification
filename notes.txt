@@ -1,0 +1,22 @@
+RPI configs
+
+ip: 172.20.10.5
+port: 1883
+
+
+classify_old:
+classify_old2: trace_level classification. added trace_id, ensures no trace split across train/test (by replacing train_test_split with GroupShuffleSplit)
+classify: replaced groupShuffleSplit with GroupKFold (5-fold cross validation). prints confidence levels for each step
+classify_new: uses top k=10 features instead of 156
+
+for k=10:
+signal_Entropy
+signal_LPCC_0
+signal_LPCC_3
+signal_LPCC_4
+signal_LPCC_7
+signal_LPCC_8
+signal_LPCC_9
+signal_Mean absolute diff
+signal_Spectral decrease
+signal_Sum absolute diff
