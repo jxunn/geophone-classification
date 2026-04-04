@@ -20,3 +20,61 @@ signal_LPCC_9
 signal_Mean absolute diff
 signal_Spectral decrease
 signal_Sum absolute diff
+
+mostly using signal shape than specific frequency peaks
+
+KNN features used (combination of paper and what TSFEL top rankings are):
+Time domain (5):
+signal_Standard deviation
+signal_Mean absolute diff
+signal_Sum absolute diff
+signal_Entropy
+signal_Zero crossing rate
+Frequency domain (5):
+signal_Spectral centroid
+signal_Spectral decrease
+signal_Spectral entropy
+signal_Spectral roll-off
+signal_Spectral spread
+
+SVM accuracy for double pass:
+Mean step accuracy: 0.867 +/- 0.071
+Mean trace accuracy: 0.938 +/- 0.058
+
+KNN accuracy for double pass: 
+Mean step accuracy: 0.845 +/- 0.044
+Mean trace accuracy: 0.909 +/- 0.031
+
+SVM accuracy for single pass: 
+Mean step accuracy: 0.836 +/- 0.024
+Mean trace accuracy: 0.895 +/- 0.077
+
+KNN acuracy for single pass:
+Mean step accuracy: 0.760 +/- 0.029
+Mean trace accuracy: 0.848 +/- 0.049
+
+
+
+
+
+
+
+- ask about parts (lcd screen for now. if possible, could also add a solenoid lock component)
+- if identification is still ok
+	- should we use a knn or smth more complex like an svm?
+
+- what parts would need to be done in C++? 
+	- IF SVM: can we still train it offline in python and only do the real time classification part in C++? (if need to train in c++ that's impossible and would tank accuracy)
+		- if not, we can just use a KNN which is easy to write in C++
+	- there are 4 parts to this, which must be in C++?:
+		1. receiving data packets from broker
+		2. processing the signal (normalizing, selecting 5 best steps, etc.)
+		3. feature extraction **do we use TSFEL for this? or must this be in C++?)
+			- bc i'm assuming we're allowed to use FFT libraries for this
+		4. feeding into model + classification
+
+
+
+		- we'd need C++ fft libraries for the frequency domain features
+
+- can we have the monitor there to manually start the program/run the executable
