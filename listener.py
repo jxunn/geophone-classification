@@ -6,21 +6,28 @@ import time
 
 from scipy import ndimage
 import tsfel
-
-BROKER_IP = "172.20.10.5"
-BROKER_PORT = 1883
+import joblib
+from statistics import mode
 
 recording = False
 start_time = -1
 recorded_data = []
+consecutive_on = 0
 
-cfg = tsfel.get_features_by_domain() # import TSFEL features
+noise_floor_buffer = []
+
+# import TSFEL features
+cfg = tsfel.get_features_by_domain()
 picked_features = [
     'signal_Standard deviation', 'signal_Mean absolute diff',
     'signal_Sum absolute diff', 'signal_Entropy', 'signal_Zero crossing rate',
     'signal_Spectral centroid', 'signal_Spectral decrease',
     'signal_Spectral entropy', 'signal_Spectral roll-off', 'signal_Spectral spread'
 ]
+
+# import trained model & scaler
+clf = joblib.load('model.pkl')
+scaler = joblib.load('scaler.pkl')
 
 # The callback for when the client receives a CONNACK response from the server.
 def on_connect(client, userdata, flags, reason_code, properties):
@@ -31,21 +38,55 @@ def on_connect(client, userdata, flags, reason_code, properties):
 
 # The callback for when a PUBLISH message is received from the server.
 def on_message(client, userdata, msg):
-    global recording, start_time, recorded_data
+    global recording, start_time, recorded_data, consecutive_on, noise_floor_buffer
 
     #print(msg.topic+" "+str(msg.payload))
     packet = json.loads(msg.payload)
 
     uuid = packet["uuid"]
     data = packet["data"]
+
+    arr = np.array(data)
     #print(f"[{uuid}] samples={len(data)}")
 
     if not recording:
-        if np.any(np.array(data) > 2400) or np.any(np.array(data) < 1000):
-            print("detected message!\n")
-            recording = True
-            start_time = time.time()
-            recorded_data.append(data)
+        current_std = np.std(data) # get current std
+
+        ## adaptive thresholding for initial footstep trigger
+        # get 100 samples of what "normal noise" at the time looks like
+        if len(noise_floor_buffer) < 100:
+            noise_floor_buffer.append(current_std)
+        else:
+            noise_floor = np.mean(noise_floor_buffer) # get average noise floor std
+            ratio = current_std / noise_floor
+            print(f"min={arr.min()} max={arr.max()} std={current_std:.1f} ratio={ratio:.2f}\n")
+
+            if ratio > 1.3:
+                
+                consecutive_on += 1
+                if consecutive_on > 3:
+                    print("detected footstep!\n")
+                    recording = True
+                    start_time = time.time()
+                    recorded_data.append(data)
+                    consecutive_on = 0
+            else:
+                #noise_floor_buffer.pop(0)
+                #noise_floor_buffer.append(current_std)
+                consecutive_on = 0
+                
+
+        # if np.any(np.array(data) > 2400) or np.any(np.array(data) < 1000):
+            
+        #     consecutive_on += 1
+        #     if consecutive_on > 2:
+        #         print("detected footstep!\n")
+        #         recording = True
+        #         start_time = time.time()
+        #         recorded_data.append(data)
+        #         consecutive_on = 0
+        # else:
+        #     consecutive_on = 0
     else:
         recorded_data.append(data)
         print(f"{time.time() - start_time:.1f}s recorded", end="\r")
@@ -64,6 +105,7 @@ def on_message(client, userdata, msg):
             start_time = -1
 
             # send detected person's name to LCD
+            print(person)
 
 
 def detect(recorded_data):
@@ -122,12 +164,39 @@ def detect(recorded_data):
         extracted = tsfel.time_series_features_extractor(cfg, df, fs=500, verbose=0)
         features.append(extracted)
     
-    return features
+    return features # this is a list of dfs
 
 
 def classify(features):
+    # filter from all TSFEL features to the 10 that we picked
+    features_filtered = []
+    for df in features:
+        features_filtered.append(df[picked_features])
+
+    X = pd.concat(features_filtered, ignore_index=True) # reformat from 5 dfs into 1 df
+
+    X_scaled = scaler.transform(X) # use imported scaler on feature data to remove units
+    pred = clf.predict_proba(X_scaled) # gives predictions along with confidence levels for each person per step (2D array)
+
+    # choose highest confidence person for each footstep
+    per_step_pred = [] # array w/ prediction for each step (based on who had highest confidence)
+    for per_step_confidences in pred: # array of 3 confidence levels specific to a step (1 per person)
+        highest_confidence = per_step_confidences.max()
+
+        # if the highest confidence for that step is too low, say it's unidentified
+        if highest_confidence < 0.5:
+            per_step_pred.append("unidentified")
+            continue
+
+        highest_confidence_idx = np.argmax(per_step_confidences)
+        highest_confidence_label = clf.classes_[highest_confidence_idx]
+        per_step_pred.append(highest_confidence_label)
+
+    print(f"Step predictions: {per_step_pred}")
+
+    trace_pred = mode(per_step_pred)
     
-    return
+    return trace_pred
 
 
 mqttc = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)

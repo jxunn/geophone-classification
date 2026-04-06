@@ -3,10 +3,10 @@ import os
 import numpy as np
 import matplotlib.pyplot as plt
 
-DATA_DIR = "step_data"
+DATA_DIR = "step_data_new"
 PERSONS = ["jenny", "josh", "tim"]
 COLORS = {"jenny": "steelblue", "josh": "darkorange", "tim": "seagreen"}
-N_TRIALS = 3
+N_TRIALS = 7
 
 def load_json_file(filepath):
     with open(filepath, "r") as f:

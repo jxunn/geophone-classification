@@ -16,7 +16,6 @@ def process_file(filepath):
         packets = json.load(f)
 
     signal = np.array([x for packet in packets for x in packet['data']])
-    signal = signal[:len(signal)//2]
 
     # plt.plot(signal)
     # plt.show()
@@ -144,7 +143,7 @@ all_trace_ids = []
 
 trace_id = 0
 for person in ['jenny', 'josh', 'tim']:
-    for filepath in glob.glob(f'step_data/{person}/*.json'):
+    for filepath in glob.glob(f'step_data_new/{person}/*.json'):
         rows = process_file(filepath)
         if rows is None:
             continue

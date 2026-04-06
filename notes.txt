@@ -53,9 +53,18 @@ KNN acuracy for single pass:
 Mean step accuracy: 0.760 +/- 0.029
 Mean trace accuracy: 0.848 +/- 0.049
 
+(SVM) went to a .94 accuracy after we did majority vote rather than choosing highest confidence step out of the 5 and using that label:
+for training/testing on old step data:
+Mean step accuracy: 0.867 +/- 0.071
+Mean trace accuracy: 0.940 +/- 0.030
 
-
-
+for training/testing on new step data:
+old classification method:
+Mean step accuracy: 0.666 +/- 0.099
+Mean trace accuracy: 0.744 +/- 0.120
+new classification method:
+Mean step accuracy: 0.666 +/- 0.099
+Mean trace accuracy: 0.685 +/- 0.110
 
 
 
