@@ -2,16 +2,11 @@ import json
 import os
 import numpy as np
 import matplotlib.pyplot as plt
-from scipy.signal import butter, filtfilt
 
 
-DATA_DIR = "nothing"
-N_TRIALS = 4
+DATA_DIR = "newer_jenny"   # folder directly in root
+N_TRIALS = 5
 COLOR = "darkorange"
-
-def butter_lowpass(data, cutoff=35, fs=5000, order=4):
-    b, a = butter(order, cutoff / (fs / 2), btype='low')
-    return filtfilt(b, a, data)
 
 def load_json_file(filepath):
     with open(filepath, "r") as f:
@@ -36,21 +31,22 @@ def load_files():
     for fname in files:
         try:
             data, gain = load_json_file(os.path.join(DATA_DIR, fname))
-            filtered = butter_lowpass(data)
-            trials.append((fname, data, filtered, gain))
+            trials.append((fname, data, gain))
         except Exception as e:
             print(f"Skipping {fname}: {e}")
 
     return trials
 
 
+# load trials
 trials = load_files()
 
-all_filtered = [filtered for _, _, filtered, _ in trials]
+# compute axis limits
+all_data = [data for _, data, _ in trials]
 
-global_ymin = min(d.min() for d in all_filtered)
-global_ymax = max(d.max() for d in all_filtered)
-global_xmax = max(len(d) for d in all_filtered)
+global_ymin = min(d.min() for d in all_data)
+global_ymax = max(d.max() for d in all_data)
+global_xmax = max(len(d) for d in all_data)
 
 y_pad = (global_ymax - global_ymin) * 0.05
 global_ymin -= y_pad
@@ -63,9 +59,9 @@ for col in range(N_TRIALS):
     ax = axes[col]
 
     if col < len(trials):
-        fname, data, filtered, gain = trials[col]
+        fname, data, gain = trials[col]
 
-        ax.plot(filtered, color=COLOR, linewidth=0.6)
+        ax.plot(data, color=COLOR, linewidth=0.6)
         ax.axhline(0, color="gray", linewidth=0.5, linestyle="--")
 
         clip_idx = np.where(data >= 4090)[0]
@@ -87,9 +83,9 @@ for col in range(N_TRIALS):
     if col == 0:
         ax.set_ylabel("ADC value", fontsize=8)
 
-plt.suptitle("Geophone Signals — newer_jenny (filtered)", fontsize=13, fontweight="bold")
+plt.suptitle("Geophone Signals — new_josh", fontsize=13, fontweight="bold")
 plt.tight_layout()
-plt.savefig("newer_jenny_filtered.png", dpi=130, bbox_inches="tight")
+plt.savefig("new_josh_signals.png", dpi=130, bbox_inches="tight")
 
-print("Saved newer_jenny_filtered.png")
+print("Saved new_josh_signals.png")
 plt.show()

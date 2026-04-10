@@ -7,6 +7,9 @@ import tsfel
 import pandas as pd
 from statistics import mode
 
+from scipy.signal import butter, filtfilt
+import matplotlib.pyplot as plt
+
 cfg = tsfel.get_features_by_domain()
 
 def process_file(filepath):
@@ -16,14 +19,19 @@ def process_file(filepath):
     # flatten packets into signal (same as np.concatenate in detect())
     signal = np.array([x for packet in packets for x in packet['data']])
 
-    mean = np.mean(signal)
-    std = np.std(signal)
+    ## apply LPF
+    b, a = butter(4, 5 / 250, btype='low')
+    filtered = filtfilt(b, a, signal)
+    #filtered = signal
+
+    mean = np.mean(filtered)
+    std = np.std(filtered)
 
     ## configure threshold above noise floor
     k = 1.5
     threshold = k * std # this threshold is adaptive
 
-    footstep_detected = np.abs(signal - mean) > threshold # array of bools (true=prob SE, false=prob not SE)
+    footstep_detected = np.abs(filtered - mean) > threshold # array of bools (true=prob SE, false=prob not SE)
 
     ## group samples that are likely part of same SE
     # tunable parameters
@@ -33,15 +41,62 @@ def process_file(filepath):
     # merge gaps between active regions (make groups, each group a SE)
     filled = ndimage.binary_closing(footstep_detected, structure=np.ones(merge_gap))
 
+
+
+    # plt.figure(figsize=(15,6))
+
+    # plt.subplot(3,1,1)
+    # plt.plot(signal, color='gray')
+    # plt.title("Original Signal")
+
+    # plt.subplot(3,1,2)
+    # plt.plot(footstep_detected.astype(int))
+    # plt.title("Raw Threshold Detection (footstep_detected)")
+
+    # plt.subplot(3,1,3)
+    # plt.plot(filled.astype(int))
+    # plt.title("After Gap Filling (binary_closing)")
+
+    # plt.tight_layout()
+    # plt.show()
+
+
+
+
     labeled, num_events = ndimage.label(filled) # label each SE
     event_slices = ndimage.find_objects(labeled) # gives stop & start for each SE
 
     # remove SEs too short to be footstep
     event_slices = [s for s in event_slices if s[0].stop - s[0].start >= min_length]
 
+
+
+
+    plt.figure(figsize=(15,4))
+    plt.plot(filtered, color='gray', label="Filtered signal")
+
+    # threshold lines
+    plt.axhline(mean + threshold, color='red', linestyle='--', label='Upper threshold')
+    plt.axhline(mean - threshold, color='red', linestyle='--', label='Lower threshold')
+
+    for i, s in enumerate(event_slices):
+        start = s[0].start
+        end = s[0].stop
+        plt.axvspan(start, end, alpha=0.3, label=f"Event {i}" if i < 5 else None)
+
+    plt.title("Detected Event Slices with Threshold")
+    plt.xlabel("Sample index")
+    plt.ylabel("ADC value")
+    plt.legend()
+    plt.show()
+
+
+
+
     if len(event_slices) < 5:
         print(f"Skipping {filepath} - only {len(event_slices)} events found")
         return None
+
 
     ## keep 5 best footsteps
     event_energies = []
@@ -55,6 +110,26 @@ def process_file(filepath):
     event_energies.sort(key=lambda x: x[0], reverse=True)
     best = event_energies[:5] # get 5 best footsteps
 
+
+
+
+    # plt.figure(figsize=(15,4))
+    # plt.plot(filtered, color='lightgray', label='filtered signal')
+
+    # # overlay the top 5 footsteps
+    # colors = ['red', 'blue', 'green', 'orange', 'purple']
+    # for i, (energy, start, end, window) in enumerate(best):
+    #     plt.plot(range(start, end), signal[start:end], color=colors[i], label=f"Top {i+1} step, {len(window)} samples")
+
+    # plt.title(f"Original Signal with Top 5 Footsteps Highlighted ({filepath})")
+    # plt.xlabel("Sample index")
+    # plt.ylabel("ADC value")
+    # plt.legend()
+    # plt.show()
+
+
+
+
     ## normalize footstep (by dividing by energy) to remove magnitude
     normalized = []
     for energy, start, end, window in best:
@@ -64,6 +139,10 @@ def process_file(filepath):
     ## truncate each footstep so they all have same window size (dont wanna pad with 0s bc spectral leakage, will mess with freq domain features)
     window_size = min(len(w) for w in normalized)
     truncated = [w[:window_size] for w in normalized]
+
+    for t in truncated:
+        print(f"step length: {len(t)}")
+
 
     ## extract features from each footstep
     features = [] # list of dfs (1 df per footstep) containing features
@@ -81,8 +160,8 @@ all_labels = []
 all_trace_ids = []
 
 trace_id = 0
-for person in ['jenny', 'josh', 'tim']:
-    for filepath in glob.glob(f'step_data_new/{person}/*.json'):
+for person in ['josh', 'tim', 'jenny']:
+    for filepath in glob.glob(f'step_data_newer/{person}/*.json'):
         rows = process_file(filepath)
         if rows is None:
             continue
@@ -145,7 +224,7 @@ for fold, (train_idx, test_idx) in enumerate(gkf.split(X, y, groups=trace_ids)):
             # if the highest confidence for that step is too low, say it's unidentified
             if highest_confidence < 0.5:
                 #print("unconfident\n")
-                per_step_pred.append("unidentified")
+                #per_step_pred.append("unidentified")
                 continue
 
             highest_confidence_idx = np.argmax(per_step_confidences)
